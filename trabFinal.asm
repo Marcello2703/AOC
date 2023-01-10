@@ -4,37 +4,41 @@
 .globl main
 
 main:
-        jal print_jogo
+        jal desenha_jogo
         jal jogada
         j   verifica
 
-print_jogo:
+desenha_jogo:
         la $s2, vetTabuleiro #vetor com o tabuleiro
         la $s0, linha #carrega a linha em s0
-        li $s1, 1     # carrega o index em s1
+        li $s1, 1     # carrega o index em $s1
 desenho:
         lw   $t1, ($s2)       # posicao inicial de vetTabuleiro
-        bltz $t1, desenha_vazio # vazio     if t1 <  0
-        bgtz $t1, desenha_o     # desenha_o if t1 >  0
-        bgez $t1, desenha_x     # desenha_x if t1 >= 0
+        bltz $t1, desenha_vazio # vazio     se $t1 <  0
+        bgtz $t1, desenha_o     # desenha_o se $t1 >  0
+        bgez $t1, desenha_x     # desenha_x se $t1 >= 0
+
 desenha_o:
         lb  $t2, jogador2  #'o'
-        j next
+        j continuacao
+
 desenha_x:
         lb  $t2, jogador1  #'x'
-        j next
+        j continuacao
+
 desenha_vazio:
         lb  $t2, vazio    #' '
-        j next
-next:
+        j continuacao
+
+continuacao:
         add $t1, $s0, $s1          # t1 = *linha[index]     - posicao onde iremos inserir o caracter
         sb  $t2, ($t1)             # linha[index] = caracter   - inserindo o caracter que foi armazenado em $t2 anteriormente
         addi $s2, $s2, 4           # i++			- avancamos 4 bytes para pegarmos o proximo -15 do vetTabuleiro que eh a proxima casa
         addi $s1, $s1, 4           # index += 4			- atualizamos o endereco de onde sera inserido o proximo caracter
         li   $t1, 13               # t1 = 13 (index 13 nao existe em linha)
-        beq  $t1, $s1, print_linha # reset linha if s1 == 13 
+        beq  $t1, $s1, desenha_linha # reset linha if s1 == 13 
         j desenho
-print_linha:
+desenha_linha:
 	li   $v0, 4                        
         la   $a0, linha                   
         syscall                     
@@ -43,7 +47,7 @@ print_linha:
         li   $t2, 36                       # vetTabuleiro.length 9x4
         la   $t3, vetTabuleiro                    # t3  = vetTabuleiro
         add  $t2, $t2, $t3                 # endereco vetTabuleiro + 36 (9 words)    
-        beq  $s2, $t2, exit_print_desenho  # se o index $s2 for do tamanho total do vetor, sai do laco
+        beq  $s2, $t2, fim_desenha_desenho  # se o index $s2 for do tamanho total do vetor, sai do laco
         
         li   $v0, 4                        
         la   $a0, separador          
@@ -51,10 +55,29 @@ print_linha:
         
         j desenho
         
-exit_print_desenho:
+fim_desenha_desenho:
         jr $ra			#volta para jogada
 
 jogada:
+
+	lw   $t3, vez    				# t3 = vez (inicialmente em 0)
+        li   $t2, 2        				# t2 = 2
+        div  $t3, $t2      				# vez / 2
+        mfhi $t6           				# t2 = vez % 2 (0 se vez for par ou 1 se vez for impar)
+        beq  $t6, $zero, desenha_player1
+
+	li $v0, 4
+	la $a0, desenha_jogada_jogador2
+	syscall
+	
+	j cont_jogada
+	
+desenha_player1:
+	li $v0, 4
+	la $a0, desenha_jogada_jogador1
+	syscall
+
+cont_jogada:	      
 	li $v0, 4
         la $a0, insira_linha	
         syscall
@@ -85,13 +108,13 @@ jogada:
         mflo $s1           # s1 = 4 * posicao_vetTabuleiroor	- precisamos pular de 4 em 4 para acessar a posicao correta a cada 4 bytes
         add  $t1, $t0, $s1 # t1 = endereco vetTabuleiro[0] + posicao calculada em s1  guardará a posicao efetiva de onde sera inserido no vetTabuleiro
         
-        lw   $t3, turno    # t3 = turno
+        lw   $t3, vez    # t3 = vez
         li   $t2, 2        # t2 = 2
-        div  $t3, $t2      # turno / 2
-        mfhi $t2           # t2 = turno % 2
+        div  $t3, $t2      # vez / 2
+        mfhi $t2           # t2 = vez % 2
         li   $t6, 1        # t6 = 1
         add  $t3, $t3, $t6 # t3 += 1
-        beq  $t2, $zero, jogada_player_1 # se turno par jogador1 se impar jogador2 
+        beq  $t2, $zero, jogada_player_1 # se vez par jogador1 se impar jogador2 
         li   $t5, 1 # jogador2
         j verifica_jogada
 jogada_player_1:
@@ -102,113 +125,73 @@ verifica_jogada:
         j store_jogada
 
 jogada_invalida:
-        la  $a0, print_jogada_invalida
+        la  $a0, desenha_jogada_invalida
         li  $v0, 4
         syscall
         j jogada
 
 store_jogada:
-        sw   $t3, turno    # turno++
+
+	addi $t7, $t7, 1
+        sw   $t3, vez    # vez++
         sw   $t5, ($t1)    # ira inserir o $t5 que sera 0 ou 1 a depender se eh jogador 1 ou 2 no vetTabuleiro($t1) ($t1 guarda a posicao efetiva de onde sera inserido o caractere)
         jr   $ra
 
 verifica:
         la  $s5, vetTabuleiro
-        lw  $s0, 4($s5)      # 012      x1x
-        lw  $s1, 16($s5)     # 345      x1x
-        lw  $s2, 24($s5)     # 678      1x1 1+4+6+7 = 4 || 0
-        lw  $s3, 32($s5)
-        jal soma_empate
-        lw  $s0, 4($s5)      # 012      x1x
-        lw  $s1, 12($s5)     # 345      11x
-        lw  $s2, 16($s5)     # 678      xx1 1+3+4+8 = 4 || 0
-        lw  $s3, 32($s5)
-        jal soma_empate
-        lw  $s0, 4($s5)      # 012      x1x
-        lw  $s1, 16($s5)     # 345      x11
-        lw  $s2, 20($s5)     # 678      1xx 1+4+5+6 = 4 || 0
-        lw  $s3, 24($s5)
-        jal soma_empate
-        lw  $s0, 0($s5)      # 012      1xx
-        lw  $s1, 16($s5)     # 345      x11
-        lw  $s2, 20($s5)     # 678      x1x 0+4+5+7 = 4 || 0
-        lw  $s3, 28($s5)
-        jal soma_empate
-        lw  $s0, 8($s5)      # 012      xx1
-        lw  $s1, 12($s5)     # 345      11x
-        lw  $s2, 16($s5)     # 678      x1x 2+3+4+7 = 4 || 0
-        lw  $s3, 28($s5)
-        jal soma_empate
-        lw  $s0, 0($s5)      # 012      1x1
-        lw  $s1, 8($s5)      # 345      x1x
-        lw  $s2, 16($s5)     # 678      x1x 0+2+4+7 = 4 || 0
-        lw  $s3, 28($s5)
-        jal soma_empate
-        lw  $s0, 0($s5)      # 012      1xx
-        lw  $s1, 16($s5)     # 345      x11
-        lw  $s2, 20($s5)     # 678      1xx 0+4+5+6 = 4 || 0
-        lw  $s3, 24($s5)
-        jal soma_empate
-        lw  $s0, 8($s5)      # 012      xx1
-        lw  $s1, 12($s5)     # 345      11x
-        lw  $s2, 16($s5)     # 678      xx1 2+3+4+8 = 4 || 0
-        lw  $s3, 32($s5)
-        jal soma_empate
+     
+        
+        lw  $s0, 0($s5)       # 1xx
+        lw  $s1, 12($s5)      # 1xx
+        lw  $s2, 24($s5)      # 1xx
+        jal soma_vencedor
+        lw  $s0, 4($s5)       # x1x
+        lw  $s1, 16($s5)      # x1x
+        lw  $s2, 28($s5)      # x1x
+        jal soma_vencedor
+        lw  $s0, 8($s5)       # xx1 
+        lw  $s1, 20($s5)      # xx1 
+        lw  $s2, 32($s5)      # xx1
+        jal soma_vencedor
+        lw  $s0, 0($s5)      # 111 
+        lw  $s1, 4($s5)      # xxx 
+        lw  $s2, 8($s5)      # xxx 
+        jal soma_vencedor
+        lw  $s0, 12($s5)     # xxx 
+        lw  $s1, 16($s5)     # 111 
+        lw  $s2, 20($s5)     # xxx
+        jal soma_vencedor
+        lw  $s0, 24($s5)     # xxx 
+        lw  $s1, 28($s5)     # xxx 
+        lw  $s2, 32($s5)     # 111
+        jal soma_vencedor
+        lw  $s0, 0($s5)       # 1xx
+        lw  $s1, 16($s5)      # x1x
+        lw  $s2, 32($s5)      # xx1
+        jal soma_vencedor
+        lw  $s0, 8($s5)       # xx1
+        lw  $s1, 16($s5)      # x1x
+        lw  $s2, 24($s5)      # 1xx
+        jal soma_vencedor
+	
+	li $t1, 9
+	beq $t7, $t1, empate	# se a quantidade de jogadas chegar a nove e nenhum dos jogadores tiver ganhado, sera um empate
+	
+        j   main            # se ninguem ganhou continua o jogo
 
-        lw  $s0, 0($s5)      # 012      111 
-        lw  $s1, 4($s5)      # 345      xxx 
-        lw  $s2, 8($s5)      # 678      xxx (0 + 1 + 2) = 3 || 0
-        jal soma_ganha
-        lw  $s0, 12($s5)     # 012      xxx 
-        lw  $s1, 16($s5)     # 345      111 
-        lw  $s2, 20($s5)     # 678      xxx (3 + 4 + 5) = 3 || 0
-        jal soma_ganha
-        lw  $s0, 24($s5)     # 012      xxx 
-        lw  $s1, 28($s5)     # 345      xxx 
-        lw  $s2, 32($s5)     # 678      111 (6 + 7 + 8) = 3 || 0
-        jal soma_ganha
-        lw  $s0, 0($s5)       # 012     1xx
-        lw  $s1, 12($s5)      # 345     1xx
-        lw  $s2, 24($s5)      # 678     1xx (0 + 3 + 6) = 3 || 0
-        jal soma_ganha
-        lw  $s0, 4($s5)       # 012     x1x
-        lw  $s1, 16($s5)      # 345     x1x
-        lw  $s2, 28($s5)      # 678     x1x (1 + 4 + 7) = 3 || 0
-        jal soma_ganha
-        lw  $s0, 8($s5)       # 012     xx1 
-        lw  $s1, 20($s5)      # 345     xx1 
-        lw  $s2, 32($s5)      # 678     xx1 (2 + 5 + 8) = 3 || 0
-        jal soma_ganha
-        lw  $s0, 0($s5)       # 012     1xx
-        lw  $s1, 16($s5)      # 345     x1x
-        lw  $s2, 32($s5)      # 678     xx1 (0 + 4 + 8) = 3 || 0
-        jal soma_ganha
-        lw  $s0, 8($s5)       # 012     xx1
-        lw  $s1, 16($s5)      # 345     x1x
-        lw  $s2, 24($s5)      # 678     1xx (2 + 4 + 6) = 3 || 0
-        jal soma_ganha
-
-        j   main            # se não empatou nem ganhou continua o jogo
-
-soma_ganha:
+soma_vencedor:
         add $t1, $s0, $s1
         add $t1, $t1, $s2
         li  $t2, 3
         beq $t1, $t2,   jogador2_ganhou
         beq $t1, $zero, jogador1_ganhou
         jr  $ra
-soma_empate:
-        add $t1, $s0, $s1
-        add $t1, $t1, $s2
-        add $t1, $t1, $s3
-        li  $t2, 4
-        beq $t2, $t1, empate
-        jr  $ra
 
 jogador1_ganhou:
-        jal print_jogo
-        la  $a0, print_jogador1_ganhou
+        jal desenha_jogo
+        
         li  $v0, 4
+        la  $a0, desenha_jogador1_ganhou
         syscall
         
         addi $t8, $t8, 1
@@ -229,11 +212,13 @@ jogador1_ganhou:
         move $a0, $t9
         syscall
         
-        j   exit
+        j   fim
+        
 jogador2_ganhou:
-        jal print_jogo
-        la  $a0, print_jogador2_ganhou
+        jal desenha_jogo
+        
         li  $v0, 4
+        la  $a0, desenha_jogador2_ganhou
         syscall
         
         addi $t9, $t9, 1
@@ -254,10 +239,13 @@ jogador2_ganhou:
         move $a0, $t9
         syscall
         
-        j   exit
+        j   fim
+        
 empate:
-        la $a0, print_empate
-        li $v0, 4
+	jal desenha_jogo
+	
+	li $v0, 4
+        la $a0, desenha_empate
         syscall
         
         li $v0, 4
@@ -276,9 +264,9 @@ empate:
         move $a0, $t9
         syscall
         
-        j exit
+        j fim
 
-exit:
+fim:
     
     	li $v0, 4
     	la $a0, pergunta
@@ -295,10 +283,11 @@ exit:
 
 renovar_jogo:
  	
- 	li $t2, 36
+ 	li $t7, 0                  # resetando o contador
+ 	li $t2, 36                 # tamanho total do vetor
  	
- 	li $t0, -15
- 	li $t1, 0
+ 	li $t0, -100               # resetando os marcadores do vetor
+ 	li $t1, 0                  # i
 loop:
  	beq $t1, $t2, main
  	 
@@ -309,21 +298,23 @@ loop:
  	j loop
  	 
  .data
-turno:                 .word 0 #identifica se eh o jogador 1 ou 2
-vetTabuleiro:                   .word -15, -15, -15, -15, -15, -15, -15, -15, -15
-linha:                 .asciiz  "   |   |   \n"  # index 1, 5, 9 sao modificados 
-separador:             .asciiz "-----------\n"
-jogador1:               .byte  'X'
-jogador2:               .byte  'O'
+vez:                   .word 0 #identifica se eh o jogador 1 ou 2
+vetTabuleiro:          .word -100, -100, -100, -100, -100, -100, -100, -100, -100		#pegamos um numero absurdamente grande para que a soma caso nao haja vitoria seja sempre negativa
+linha:                 .asciiz  "   |   |   \n"  #  enderecos 1, 5, 9 irao conter os carcteres 
+separador:             .asciiz "---+---+---\n"
+jogador1:              .byte  'X'
+jogador2:              .byte  'O'
 vazio:                 .byte  ' '
 placar:		       .asciiz "\nPlacar:\nJogador 1         Jogador 2\n    "
 vs:		       .asciiz "        x        "
-insira_linha:          .asciiz  "\n\nInsira a linha:"
-insira_coluna:         .asciiz  "Insira a coluna:"
-print_jogador1_ganhou: .asciiz  "\nJogador 1 (X) venceu!\n"
-print_jogador2_ganhou: .asciiz  "\nJogador 2 (O) venceu!\n"
-print_empate:          .asciiz  "Deu velha!\n"
-print_jogada_invalida: .asciiz  "\nJogada invalida! Jogue novamente...\n"
+insira_linha:          .asciiz  "\nEscolha uma linha [0] [1] [2]: "
+insira_coluna:         .asciiz  "Escolha uma coluna [0] [1] [2]: "
+desenha_jogada_jogador1: .asciiz "\nJogador 1, sua vez!"
+desenha_jogada_jogador2: .asciiz "\nJogador 2, sua vez!"
+desenha_jogador1_ganhou: .asciiz  "\nJogador 1 (X) venceu!\n"
+desenha_jogador2_ganhou: .asciiz  "\nJogador 2 (O) venceu!\n"
+desenha_empate:          .asciiz  "\nDeu velha!\n"
+desenha_jogada_invalida: .asciiz  "\nJogada invalida! Jogue novamente..."
 pergunta:	       .asciiz "\n\nJogar novamente? [0 - Sim] [1 - Não]\n"
 
  	  
