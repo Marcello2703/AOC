@@ -33,7 +33,7 @@ desenha_vazio:
 continuacao:
         add $t1, $s0, $s1          # t1 = *linha[index]     - posicao onde iremos inserir o caracter
         sb  $t2, ($t1)             # linha[index] = caracter   - inserindo o caracter que foi armazenado em $t2 anteriormente
-        addi $s2, $s2, 4           # i++			- avancamos 4 bytes para pegarmos o proximo -15 do vetTabuleiro que eh a proxima casa
+        addi $s2, $s2, 4           # i++			- avancamos 4 bytes para pegarmos o proximo -100 do vetTabuleiro que eh a proxima casa
         addi $s1, $s1, 4           # index += 4			- atualizamos o endereco de onde sera inserido o proximo caracter
         li   $t1, 13               # t1 = 13 (index 13 nao existe em linha)
         beq  $t1, $s1, desenha_linha # reset linha if s1 == 13 
@@ -103,7 +103,7 @@ cont_jogada:
       
         la   $t0, vetTabuleiro    # t0 = carrega endereco de vetTabuleiro[0]
         
-        li   $t5, 4        # t1 = 4 (tamanho da word no vetTabuleiro) 4 bytes para cada inteiro
+        li   $t5, 4        # t5 = 4 (tamanho da word no vetTabuleiro) 4 bytes para cada inteiro
         mult $s4, $t5      # 4 * posicao_vetTabuleiroor
         mflo $s1           # s1 = 4 * posicao_vetTabuleiroor	- precisamos pular de 4 em 4 para acessar a posicao correta a cada 4 bytes
         add  $t1, $t0, $s1 # t1 = endereco vetTabuleiro[0] + posicao calculada em s1  guardará a posicao efetiva de onde sera inserido no vetTabuleiro
